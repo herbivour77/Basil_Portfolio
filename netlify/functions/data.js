@@ -1,4 +1,4 @@
-const { getStore } = require('@netlify/blobs');
+const { connectLambda, getStore } = require('@netlify/blobs');
 const { requireAuth } = require('./_auth');
 
 const STORE_NAME = 'portfolio-data';
@@ -9,53 +9,73 @@ const MAX_JSON_BYTES = 4.75 * 1024 * 1024;
 
 /* ---------- JSON response helper ---------- */
 
-function json(status, obj){
-
+function json(status, obj) {
   return {
-    statusCode:status,
+    statusCode: status,
 
-    headers:{
-      'Content-Type':'application/json',
-      'Cache-Control':'no-store',
-      'Access-Control-Allow-Origin':'*',
-      'Access-Control-Allow-Headers':'Content-Type, Authorization',
-      'Access-Control-Allow-Methods':'GET, POST, OPTIONS'
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
     },
 
-    body:JSON.stringify(obj)
+    body: JSON.stringify(obj)
   };
 }
 
 
 /* ---------- Function ---------- */
 
-exports.handler = async function(event){
+exports.handler = async function (event) {
 
   /*
-   * Handle browser preflight requests.
+   * IMPORTANT:
+   * Initialise Netlify Blobs using the Lambda event.
+   *
+   * This is required when using the older
+   * exports.handler Netlify Function format.
    */
-  if(event.httpMethod === 'OPTIONS'){
+  try {
+    connectLambda(event);
+  } catch (err) {
 
-    return json(204,{});
+    console.error(
+      'Netlify Blobs connection failed:',
+      err
+    );
+
+    return json(
+      500,
+      {
+        error: 'Netlify Blobs could not be initialised.',
+        detail:
+          err && err.message
+            ? err.message
+            : String(err)
+      }
+    );
   }
 
 
   /*
-   * Netlify automatically provides the
-   * site context when getStore() is used
-   * from a Netlify Function.
-   *
-   * DO NOT pass NETLIFY_SITE_ID or
-   * NETLIFY_BLOBS_TOKEN here.
+   * Handle browser preflight requests.
    */
+  if (event.httpMethod === 'OPTIONS') {
+    return json(204, {});
+  }
+
+
+  /* ---------- Initialise store ---------- */
+
   let store;
 
-  try{
+  try {
 
-    store =
-      getStore(STORE_NAME);
+    store = getStore(STORE_NAME);
 
-  }catch(err){
+  } catch (err) {
 
     console.error(
       'Netlify Blobs initialisation failed:',
@@ -83,16 +103,16 @@ exports.handler = async function(event){
      Publicly reads the saved portfolio
      ===================================================== */
 
-  if(event.httpMethod === 'GET'){
+  if (event.httpMethod === 'GET') {
 
-    try{
+    try {
 
       const data =
         await store.get(
           KEY,
           {
-            type:'json',
-            consistency:'strong'
+            type: 'json',
+            consistency: 'strong'
           }
         );
 
@@ -100,7 +120,7 @@ exports.handler = async function(event){
       /*
        * First visit / no saved portfolio yet.
        */
-      if(data === null){
+      if (data === null) {
 
         return json(
           200,
@@ -114,7 +134,7 @@ exports.handler = async function(event){
         data
       );
 
-    }catch(err){
+    } catch (err) {
 
       console.error(
         'Portfolio read failed:',
@@ -143,18 +163,18 @@ exports.handler = async function(event){
      Admin saves the portfolio
      ===================================================== */
 
-  if(event.httpMethod === 'POST'){
+  if (event.httpMethod === 'POST') {
 
     /*
      * Only authenticated admin users
      * may save data.
      */
-    if(!requireAuth(event)){
+    if (!requireAuth(event)) {
 
       return json(
         401,
         {
-          error:'Unauthorized'
+          error: 'Unauthorized'
         }
       );
     }
@@ -164,14 +184,14 @@ exports.handler = async function(event){
 
     let body;
 
-    try{
+    try {
 
       body =
         JSON.parse(
           event.body || '{}'
         );
 
-    }catch(err){
+    } catch (err) {
 
       return json(
         400,
@@ -196,7 +216,7 @@ exports.handler = async function(event){
           ? body.profile
 
           : {
-              avatar:null
+              avatar: null
             },
 
 
@@ -207,8 +227,8 @@ exports.handler = async function(event){
           ? body.about
 
           : {
-              bio:'',
-              focus:''
+              bio: '',
+              focus: ''
             },
 
 
@@ -219,10 +239,10 @@ exports.handler = async function(event){
           ? body.contact
 
           : {
-              email:'',
-              phone:'',
-              location:'',
-              website:''
+              email: '',
+              phone: '',
+              location: '',
+              website: ''
             },
 
 
@@ -250,7 +270,7 @@ exports.handler = async function(event){
       );
 
 
-    if(bytes > MAX_JSON_BYTES){
+    if (bytes > MAX_JSON_BYTES) {
 
       return json(
         413,
@@ -274,48 +294,39 @@ exports.handler = async function(event){
 
     /* ---------- Save ---------- */
 
-    try{
+    try {
 
-      const result =
-        await store.setJSON(
-          KEY,
-          toSave
-        );
+      await store.setJSON(
+        KEY,
+        toSave
+      );
 
 
       console.log(
         'Portfolio saved successfully.',
         {
-          bytes,
-          modified:
-            result &&
-            result.modified,
-
-          etag:
-            result &&
-            result.etag
+          bytes
         }
       );
 
 
+      /*
+       * Explicit success response.
+       * The frontend can use "saved:true"
+       * to display its Saved indicator.
+       */
       return json(
         200,
         {
-          ok:true,
+          ok: true,
 
-          saved:true,
+          saved: true,
 
-          bytes,
-
-          etag:
-            result &&
-            result.etag
-              ? result.etag
-              : null
+          bytes
         }
       );
 
-    }catch(err){
+    } catch (err) {
 
       console.error(
         'Portfolio save failed:',
@@ -353,5 +364,5 @@ exports.handler = async function(event){
 
 
 exports.config = {
-  path:'/api/data'
+  path: '/api/data'
 };
