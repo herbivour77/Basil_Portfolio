@@ -27,7 +27,7 @@ exports.handler = async (event) => {
     // This site is currently reporting MissingBlobsEnvironmentError, so support
     // explicit credentials as a reliable fallback when the automatic Blobs
     // environment is not available on the deployed site.
-    store = getStore(STORE_NAME);
+    store = getStore(STORE_NAME, { siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_BLOBS_TOKEN });
   } catch (e) {
     console.error('Unable to initialise Netlify Blobs store:', e);
     const missingConfig = /MissingBlobsEnvironmentError|siteID|token/i.test(String(e && e.message || e));
