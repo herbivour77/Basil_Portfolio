@@ -27,25 +27,13 @@ exports.handler = async (event) => {
     // This site is currently reporting MissingBlobsEnvironmentError, so support
     // explicit credentials as a reliable fallback when the automatic Blobs
     // environment is not available on the deployed site.
-    const siteID = process.env.NETLIFY_SITE_ID || process.env.SITE_ID;
-    const token =
-      process.env.NETLIFY_BLOBS_TOKEN ||
-      process.env.NETLIFY_AUTH_TOKEN ||
-      process.env.NETLIFY_ACCESS_TOKEN;
-
-    const options = {};
-    if (siteID) options.siteID = siteID;
-    if (token) options.token = token;
-
-    store = Object.keys(options).length
-      ? getStore(STORE_NAME, options)
-      : getStore(STORE_NAME);
+    store = getStore(STORE_NAME);
   } catch (e) {
     console.error('Unable to initialise Netlify Blobs store:', e);
     const missingConfig = /MissingBlobsEnvironmentError|siteID|token/i.test(String(e && e.message || e));
     return json(500, {
       error: missingConfig
-        ? 'Netlify Blobs is not configured for this Function. Add NETLIFY_BLOBS_TOKEN and NETLIFY_SITE_ID in Netlify Environment Variables, or enable automatic Blobs configuration for the site.'
+        ? 'Netlify Blobs is not configured for this Function.'
         : 'Storage is not available.',
       detail: e.message
     });
