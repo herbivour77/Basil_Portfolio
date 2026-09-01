@@ -1,0 +1,15 @@
+{
+  "name": "my-portfolio-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portfolio site with a password-protected admin panel and a public view-only page, deployable to Netlify with Netlify Blobs storage.",
+  "dependencies": {
+    "@netlify/blobs": "^11.0.2"
+  },
+  "devDependencies": {
+    "netlify-cli": "^18.0.0"
+  },
+  "scripts": {
+    "dev": "netlify dev"
+  }
+}
